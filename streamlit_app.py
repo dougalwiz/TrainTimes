@@ -1,6 +1,5 @@
 import streamlit as st
 import national_rail_api
-import config
 import pandas as pd
 
 # Page Config for Mobile
