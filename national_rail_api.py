@@ -1,8 +1,11 @@
 import requests
-import config
+import streamlit as st # Added for secrets
 
 # National Rail REST API endpoint
 API_URL = "https://api1.raildata.org.uk/1010-live-departure-board-dep1_2/LDBWS/api/20220120/GetDepBoardWithDetails"
+
+# Get the key from Streamlit Secrets
+API_KEY = st.secrets["API_KEY"] 
 
 # Station CRS codes
 STATIONS = {
@@ -11,21 +14,15 @@ STATIONS = {
 }
 
 def get_departures(from_station, to_station):
-    """
-    Get departure information for a given route using the REST API.
-    """
-    if not config.API_KEY or config.API_KEY == "YOUR_API_KEY":
+    if not API_KEY:
         return "NO_API_KEY"
 
-    # FIX 1: Added a custom User-Agent to prevent the API from blocking the request
     headers = {
-        "x-apikey": config.API_KEY,
+        "x-apikey": API_KEY,
         "User-Agent": "TrainDepartureBoardApp/1.0"
     }
     
     url = f"{API_URL}/{STATIONS[from_station]}"
-    
-    # FIX 2: Added 'filterType' because 'filterCrs' usually requires it
     params = {
         "filterCrs": STATIONS[to_station],
         "filterType": "to" 
@@ -33,13 +30,12 @@ def get_departures(from_station, to_station):
 
     try:
         response = requests.get(url, headers=headers, params=params)
-        response.raise_for_status()  # Raise an exception for bad status codes
+        response.raise_for_status() 
         data = response.json()
 
         train_services = []
         if data and data.get("trainServices"):
             for service in data["trainServices"]:
-                # The new API response structure is different
                 sta = "N/A"
                 eta = "N/A"
                 if service.get("subsequentCallingPoints"):
@@ -49,8 +45,6 @@ def get_departures(from_station, to_station):
                                 sta = calling_point.get("st", "N/A")
                                 eta = calling_point.get("et", "N/A")
                                 break
-                        if sta != "N/A":
-                            break
                 
                 train_services.append({
                     "std": service.get("std", "N/A"),
@@ -60,18 +54,5 @@ def get_departures(from_station, to_station):
                     "platform": service.get("platform", "N/A"),
                 })
         return train_services[:5]
-
-    except requests.exceptions.HTTPError as e:
-        if e.response.status_code == 401:
-            print(f"Error calling National Rail API: {e}")
-            return "INVALID_API_KEY"
-        else:
-            # This will now print the exact status code (e.g., 400 or 403) if it fails again
-            print(f"HTTP Error: {e.response.status_code} - {e}")
-            return []
-    except requests.exceptions.RequestException as e:
-        print(f"Error calling National Rail API: {e}")
-        return []
     except Exception as e:
-        print(f"An unexpected error occurred: {e}")
         return []
